@@ -1,0 +1,27 @@
+server:
+  port: 9090
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+file:
+  upload:
+    path: ./uploads  # 文件上传路径，可以根据需要修改
+
+# OpenAPI 配置
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui/index.html
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - url: /v3/api-docs
+        name: API docs
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  packages-to-scan: com.fashen.controller
+  paths-to-match: /api/**
