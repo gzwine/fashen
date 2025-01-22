@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能法审系统</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid #000;
+            color: #000;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .file-upload {
+            border: 2px dashed #ddd;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+
+        .file-upload:hover {
+            border-color: #999;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+        }
+
+        button {
+            background-color: #000;
+            color: #fff;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background-color: #333;
+        }
+
+        .error-message {
+            color: #ff4444;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .success-message {
+            color: #4CAF50;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .analysis-content {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .result-table th,
+        .result-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .result-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+
+        .result-table tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .file-link {
+            color: #0066cc;
+            text-decoration: none;
+        }
+
+        .file-link:hover {
+            text-decoration: underline;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .loading::after {
+            content: '处理中...';
+            display: inline-block;
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '处理中.'; }
+            40% { content: '处理中..'; }
+            60%, 100% { content: '处理中...'; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>智能法审系统</h1>
+        
+        <div class="file-upload" onclick="triggerFileInput()">
+            <input type="file" id="file-input" style="display: none">
+            <p>点击或拖拽文件到此处上传</p>
+            <p id="selected-file">未选择文件</p>
+        </div>
+
+        <button onclick="startAnalysis()">开始智能审核</button>
+        <div id="loading" class="loading"></div>
+        <div id="error-message" class="error-message"></div>
+
+        <table class="result-table">
+            <thead>
+                <tr>
+                    <th>文件名称</th>
+                    <th>处理结果</th>
+                </tr>
+            </thead>
+            <tbody id="result-list">
+                <!-- 结果将动态插入这里 -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // 保存历史记录
+        let analysisHistory = [];
+
+        // 页面加载时获取历史记录
+        window.onload = function() {
+            loadHistory();
+        };
+
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/file/history');
+                if (response.ok) {
+                    const data = await response.json();
+                    analysisHistory = data;
+                    updateResultTable();
+                }
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+            }
+        }
+
+        function updateResultTable() {
+            const tbody = document.getElementById('result-list');
+            tbody.innerHTML = analysisHistory.map(item => `
+                <tr>
+                    <td>
+                        <a href="/uploads/${item.filePath}" class="file-link" target="_blank">
+                            ${item.fileName}
+                        </a>
+                    </td>
+                    <td>${item.analysis}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function startAnalysis() {
+            const fileInput = document.getElementById('file-input');
+            const button = document.querySelector('button');
+            const loading = document.getElementById('loading');
+            const errorMessage = document.getElementById('error-message');
+
+            if (!fileInput.files.length) {
+                showError('请选择要上传的文件');
+                return;
+            }
+
+            button.disabled = true;
+            loading.style.display = 'block';
+            errorMessage.style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+
+                const response = await fetch('/api/file/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // 添加新记录到历史记录中
+                    analysisHistory.unshift(data);
+                    updateResultTable();
+                    // 清空文件选择
+                    fileInput.value = '';
+                    document.getElementById('selected-file').textContent = '未选择文件';
+                } else {
+                    showError(data.error || '文件上传失败');
+                }
+            } catch (error) {
+                showError('网络错误，请稍后重试');
+            } finally {
+                button.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function triggerFileInput() {
+            document.getElementById('file-input').click();
+        }
+
+        // 监听文件选择
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || '未选择文件';
+            document.getElementById('selected-file').textContent = fileName;
+        });
+
+        // 处理拖拽上传
+        const dropZone = document.querySelector('.file-upload');
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#000';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ddd';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ddd';
+            
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                document.getElementById('file-input').files = files;
+                document.getElementById('selected-file').textContent = files[0].name;
+            }
+        });
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html> 
