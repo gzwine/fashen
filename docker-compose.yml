@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  fashen-app:
+    build: .
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+    restart: unless-stopped 
